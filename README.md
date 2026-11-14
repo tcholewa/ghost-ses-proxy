@@ -186,7 +186,7 @@ All `/v3/*` endpoints require Basic auth with any username and your `PROXY_API_K
 | `MAILGUN_DOMAIN` | Yes | — | Your sending domain |
 | `PORT` | No | `3003` | HTTP port |
 | `LOG_LEVEL` | No | `info` | Set to `debug` for per-recipient send logs |
-| `SEND_CONCURRENCY` | No | `25` | Max parallel SES sends across in-flight batches |
+| `SEND_CONCURRENCY` | No | `25` | Max parallel SES sends across in-flight batches. AWS accounts have a per-second sending rate cap; if sends fail with "Maximum sending rate exceeded", lower this (the production deployment runs `5`). |
 
 ## Event pipeline detail
 
@@ -225,6 +225,7 @@ A cleanup job runs daily, deleting records older than 90 days.
 
 ## Known Ghost integration constraints
 
+- **Ghost >= 6.5x sends a per-recipient `h:Message-Id` header** (`<%recipient.message_id%>`, with a deterministic `message_id` added to recipient-variables). The proxy substitutes it per recipient so replies thread correctly; it must never copy that header verbatim on top of its own `Message-ID:` — SES then rejects every send with "Duplicate header 'Message-ID'" (v1.1.1 fix).
 - Ghost's mailgun.js client uses a **60s HTTP timeout** on `POST /messages`. Real Mailgun queues and returns in milliseconds; this proxy must do the same (v1.1.0+). Holding the connection until SES finishes caused Ghost to retry batches and subscribers received digests 2–3×.
 - Ghost's mailgun.js `parsePageLinks` runs `new URL()` on **every** `paging.*` value. Empty strings (`""`) throw `Invalid URL` and abort the entire email-analytics job — delivery/open stats never update.
 
